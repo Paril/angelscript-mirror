@@ -904,6 +904,50 @@ int asCScriptFunction::GetDeclaredAt(const char** scriptSection, int* row, int* 
 	return 0;
 }
 
+asUINT asCScriptFunction::GetLineNumberCount() const
+{
+	if (!scriptData)
+		return 0;
+
+	return scriptData->lineNumbers.GetLength() / 2;
+}
+
+int asCScriptFunction::GetLineNumber(asUINT index, const char** scriptSection, int* row, int* col) const
+{
+	if (!scriptData)
+		return asNOT_SUPPORTED;
+	else if (index > scriptData->lineNumbers.GetLength() / 2)
+		return asINVALID_ARG;
+	
+	int position = scriptData->lineNumbers[index * 2];
+	int rowcol = scriptData->lineNumbers[(index * 2) + 1];
+
+	if (scriptSection)
+	{
+		if (scriptData->sectionIdxs.GetLength() > 0)
+		{
+			int sectionIdx = 0;
+
+			// Find the correct section index if the function is compiled from multiple sections
+			// This array will be empty most of the time so we don't need a sofisticated algorithm to search it
+			for( asUINT n = 0; n < scriptData->sectionIdxs.GetLength(); n += 2 )
+			{
+				if( scriptData->sectionIdxs[n] <= position )
+					sectionIdx = scriptData->sectionIdxs[n+1];
+			}
+
+			*scriptSection = engine->scriptSectionNames[sectionIdx]->AddressOf();
+		}
+		else
+			*scriptSection = engine->scriptSectionNames[scriptData->scriptSectionIdx]->AddressOf();
+	}
+
+	if (row) *row = rowcol & 0xFFFFF;
+	if (col) *col = rowcol >> 20;
+
+	return 0;
+}
+
 // internal
 int asCScriptFunction::GetLineNumber(int programPosition, int *sectionIdx)
 {
@@ -1461,6 +1505,9 @@ int asCScriptFunction::GetReturnTypeId(asDWORD *flags) const
 		}
 		else
 			*flags = asTM_NONE;
+
+		if( returnType.HasIfHandleThenConst() )
+			*flags |= asTM_IF_HANDLE_THEN_CONST;
 	}
 
 	return engine->GetTypeIdFromDataType(returnType);
@@ -1485,6 +1532,7 @@ int asCScriptFunction::GetParam(asUINT index, int *out_typeId, asDWORD *out_flag
 	{
 		*out_flags = inOutFlags[index];
 		*out_flags |= parameterTypes[index].IsReadOnly() ? asTM_CONST : 0;
+		*out_flags |= parameterTypes[index].HasIfHandleThenConst() ? asTM_IF_HANDLE_THEN_CONST : 0;
 	}
 
 	if( out_name )
@@ -1813,6 +1861,12 @@ bool asCScriptFunction::IsProperty() const
 bool asCScriptFunction::IsVariadic() const
 {
 	return traits.GetTrait(asTRAIT_VARIADIC);
+}
+
+// interface
+bool asCScriptFunction::IsNoDiscard() const
+{
+	return traits.GetTrait(asTRAIT_NODISCARD);
 }
 
 // internal

@@ -362,7 +362,7 @@ asUINT asCEnumType::GetEnumValueCount() const
 }
 
 // interface
-const char *asCEnumType::GetEnumValueByIndex(asUINT index, int *outValue) const
+const char *asCEnumType::GetEnumValueByIndex(asUINT index, asINT64 *outValue) const
 {
 	if (outValue)
 		*outValue = 0;

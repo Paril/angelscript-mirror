@@ -109,7 +109,9 @@ public:
 
 	// Debugging
 	int                SetLineCallback(const asSFuncPtr &callback, void *obj, int callConv);
+	int                SetFunctionCallback(const asSFuncPtr &callback, void *obj, int callConv);
 	void               ClearLineCallback();
+    void               ClearFunctionCallback();
 	asUINT             GetCallstackSize() const;
 	asIScriptFunction *GetFunction(asUINT stackLevel);
 	int                GetLineNumber(asUINT stackLevel, int *column, const char **sectionName);
@@ -155,6 +157,7 @@ public:
 
 	void CallLineCallback();
 	void CallExceptionCallback();
+	void CallFunctionCallback(asCScriptFunction *func, bool pop);
 
 	int  CallGeneric(asCScriptFunction *func);
 #ifndef AS_NO_EXCEPTIONS
@@ -239,6 +242,10 @@ public:
 	bool                       m_exceptionCallback;
 	asSSystemFunctionInterface m_exceptionCallbackFunc;
 	void *                     m_exceptionCallbackObj;
+
+	bool                       m_functionCallback;
+	asSSystemFunctionInterface m_functionCallbackFunc;
+	void *                     m_functionCallbackObj;
 
 	asCArray<asPWORD> m_userData;
 

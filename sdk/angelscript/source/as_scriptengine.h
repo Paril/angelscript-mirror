@@ -123,8 +123,8 @@ public:
 	virtual int GetDefaultArrayTypeId() const;
 
 	// Enums
-	virtual int          RegisterEnum(const char *type);
-	virtual int          RegisterEnumValue(const char *type, const char *name, int value);
+	virtual int          RegisterEnum(const char *typeName, const char *underlyingType = "int32");
+	virtual int          RegisterEnumValue(const char *type, const char *name, asINT64 value);
 	virtual asUINT       GetEnumCount() const;
 	virtual asITypeInfo *GetEnumByIndex(asUINT index) const;
 
@@ -194,6 +194,9 @@ public:
 	virtual void ForwardGCEnumReferences(void *ref, asITypeInfo *type);
 	virtual void ForwardGCReleaseReferences(void *ref, asITypeInfo *type);
 	virtual void SetCircularRefDetectedCallback(asCIRCULARREFFUNC_t callback, void *param = 0);
+	virtual int SetGarbageCollectionCallback(const asSFuncPtr &callback, void *obj, asDWORD callConv);
+	virtual int ClearGarbageCollectionCallback();
+    virtual void CallGarbageCollectorCallback(asDWORD flags, asUINT numIterations, bool pop);
 
 	// User data
 	virtual void *SetUserData(void *data, asPWORD type);
@@ -428,6 +431,9 @@ public:
 
 	// Garbage collector
 	asCGarbageCollector gc;
+	bool                        garbageCallback;
+	asSSystemFunctionInterface  garbageCallbackFunc;
+	void                       *garbageCallbackObj;
 
 	// Dynamic groups
 	asCConfigGroup             defaultGroup;

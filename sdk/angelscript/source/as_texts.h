@@ -236,6 +236,8 @@
 #define TXT_NOT_VALID_LVALUE                       "Not a valid lvalue"
 #define TXT_NOTHING_WAS_BUILT                      "Nothing was built in the module"
 #define TXT_AMBIGUOUS_SYMBOL_NAME_s                "Ambiguous symbol name '%s'"
+#define TXT_NODISCARD_DISCARDED                    "Discarded return value of a nodiscard function (%s)"
+#define TXT_NODISCARD_CANT_BE_VOID                 "Function/method '%s' declared nodiscard but does not return a value"
 
 #define TXT_OBJECT_DOESNT_SUPPORT_INDEX_OP          "Type '%s' doesn't support the indexing operator"
 #define TXT_OBJECT_HANDLE_NOT_SUPPORTED             "Object handle is not supported for this type"
@@ -311,6 +313,18 @@
 #define TXT_WHILE_PARSING_NAMESPACE       "While parsing namespace"
 #define TXT_WHILE_PARSING_STATEMENT_BLOCK "While parsing statement block"
 #define TXT_WHILE_INCLUDING_MIXIN         "Previous error occurred while including mixin"
+
+#define TXT_NOT_ENOUGH_ARGUMENTS          "rejected due to not enough parameters"
+#define TXT_TOO_MANY_ARGUMENTS            "rejected due to too many parameters"
+#define TXT_ARGUMENT_TYPE_ERROR_i         "rejected due to type mismatch at positional parameter %i"
+#define TXT_ARGUMENT_TYPE_ERROR_s         "rejected due to type mismatch on parameter '%s'"
+#define TXT_DUPLICATE_NAMED_ARGUMENT_s    "Duplicate named parameter '%s'"
+#define TXT_MISSING_ARGUMENT_s            "rejected due to named parameter '%s' missing"
+
+#define TXT_INVALID_VALUE_INOUT_EXPR      "value inout parameters cannot be passed the result of an expression"
+#define TXT_INVALID_VALUE_INOUT_VAR       "value inout parameters can only be passed a named non-const local variable"
+#define TXT_INVALID_VALUE_INOUT_PARAM     "only local variables, by-value parameters or other inout parameters can be passed directly as inout arguments"
+#define TXT_INVALID_VALUE_INOUT_CONST     "constants cannot be passed as an inout parameter"
 
 // Global variable initialization
 

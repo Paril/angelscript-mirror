@@ -1334,7 +1334,9 @@ int asCBuilder::ParseFunctionDeclaration(asCObjectType *objType, const char *dec
 	asCScriptNode *node = parser.GetScriptNode();
 
 	// Determine scope
-	asCScriptNode *n = node->firstChild->next->next;
+	asCScriptNode *typeNode = node->firstChild;
+
+	asCScriptNode *n = typeNode->next->next;
 	asCObjectType *parentClass = 0;
 	func->nameSpace = GetNameSpaceFromNode(n, &source, ns, &n, &parentClass);
 	if( func->nameSpace == 0 && parentClass == 0 )
@@ -1368,8 +1370,8 @@ int asCBuilder::ParseFunctionDeclaration(asCObjectType *objType, const char *dec
 	bool autoHandle;
 
 	// Scoped reference types are allowed to use handle when returned from application functions
-	func->returnType = CreateDataTypeFromNode(node->firstChild, &source, objType ? objType->nameSpace : ns, true, parentClass ? parentClass : objType, true, 0, isTemplate ? &func->templateSubTypes : 0);
-	func->returnType = ModifyDataTypeFromNode(func->returnType, node->firstChild->next, &source, 0, &autoHandle);
+	func->returnType = CreateDataTypeFromNode(typeNode, &source, objType ? objType->nameSpace : ns, true, parentClass ? parentClass : objType, true, 0, isTemplate ? &func->templateSubTypes : 0);
+	func->returnType = ModifyDataTypeFromNode(func->returnType, typeNode->next, &source, 0, &autoHandle);
 		
 	if( autoHandle && (!func->returnType.IsObjectHandle() || func->returnType.IsReference()) )
 		return asINVALID_DECLARATION;
@@ -1493,6 +1495,13 @@ int asCBuilder::ParseFunctionDeclaration(asCObjectType *objType, const char *dec
 			func->SetExplicit(true);
 		else if( source.TokenEquals(n->tokenPos, n->tokenLength, PROPERTY_TOKEN))
 			func->SetProperty(true);
+		else if( source.TokenEquals(n->tokenPos, n->tokenLength, NODISCARD_TOKEN))
+		{
+			if ( func->returnType.GetTokenType() == ttVoid )
+				return asINVALID_DECLARATION;
+
+			func->SetNoDiscard(true);
+		}
 		else
 			return asINVALID_DECLARATION;
 
@@ -2776,10 +2785,11 @@ void asCBuilder::CompileGlobalVariables()
 					// Set the namespace that should be used during the compilation
 					func.nameSpace = gvar->datatype.GetTypeInfo()->nameSpace;
 
-					// Temporarily switch the type of the variable to int so it can be compiled properly
+					// Temporarily switch the type of the variable to the enums' underlying type so it can be compiled properly
+					asCEnumType *enumType = CastToEnumType(gvar->datatype.GetTypeInfo());
 					asCDataType saveType;
 					saveType = gvar->datatype;
-					gvar->datatype = asCDataType::CreatePrimitive(ttInt, true);
+					gvar->datatype = enumType->enumType;
 					r = comp.CompileGlobalVariable(this, gvar->script, gvar->initializationNode, gvar, &func);
 					gvar->datatype = saveType;
 
@@ -2791,7 +2801,7 @@ void asCBuilder::CompileGlobalVariables()
 					r = 0;
 
 					// When there is no assignment the value is the last + 1
-					int enumVal = 0;
+					asINT64 enumVal = 0;
 					asCSymbolTable<sGlobalVariableDescription>::iterator prev_it = it;
 					prev_it--;
 					if( prev_it )
@@ -2799,7 +2809,7 @@ void asCBuilder::CompileGlobalVariables()
 						sGlobalVariableDescription *gvar2 = *prev_it;
 						if(gvar2->datatype == gvar->datatype )
 						{
-							enumVal = int(gvar2->constantValue) + 1;
+							enumVal = asINT64(gvar2->constantValue) + 1;
 
 							if( !gvar2->isCompiled )
 							{
@@ -2917,7 +2927,7 @@ void asCBuilder::CompileGlobalVariables()
 					}
 
 					e->name = gvar->name;
-					e->value = int(gvar->constantValue);
+					e->value = asINT64(gvar->constantValue);
 
 					enumType->enumValues.PushLast(e);
 				}
@@ -4693,6 +4703,19 @@ int asCBuilder::RegisterEnum(asCScriptNode *node, asCScriptCode *file, asSNameSp
 	asASSERT(snIdentifier == tmp->firstChild->nodeType);
 	name.Assign(&file->code[tmp->firstChild->tokenPos], tmp->firstChild->tokenLength);
 
+	// Grab the type of the enumeration
+	asCDataType type = asCDataType::CreatePrimitive(ttInt, true);
+
+	asCScriptNode *dataNode = tmp->firstChild->next;
+
+	if (dataNode)
+	{
+		asASSERT(snDataType == dataNode->nodeType);
+		asASSERT((dataNode->tokenType >= ttInt && dataNode->tokenType <= ttInt64) ||
+				 (dataNode->tokenType >= ttUInt && dataNode->tokenType <= ttUInt64));
+		type = asCDataType::CreatePrimitive(dataNode->tokenType, true);
+	}
+
 	if( isShared )
 	{
 		// Look for a pre-existing shared enum with the same signature
@@ -4703,7 +4726,8 @@ int asCBuilder::RegisterEnum(asCScriptNode *node, asCScriptCode *file, asSNameSp
 				o->IsShared() &&
 				(o->flags & asOBJ_ENUM) &&
 				o->name == name &&
-				o->nameSpace == ns )
+				o->nameSpace == ns &&
+				CastToEnumType(o)->enumType == type)
 			{
 				existingSharedType = CastToEnumType(o);
 				break;
@@ -4743,10 +4767,24 @@ int asCBuilder::RegisterEnum(asCScriptNode *node, asCScriptCode *file, asSNameSp
 			st->flags     = asOBJ_ENUM;
 			if( isShared )
 				st->flags |= asOBJ_SHARED;
-			st->size      = 4;
+			st->size      = type.GetSizeInMemoryBytes();
 			st->name      = name;
 			st->nameSpace = ns;
 			st->module    = module;
+			st->enumType  = type;
+
+			switch(type.GetTokenType())
+			{
+			case ttInt: st->enumTypeId = asTYPEID_INT32; break;
+			case ttInt8: st->enumTypeId = asTYPEID_INT8; break;
+			case ttInt16: st->enumTypeId = asTYPEID_INT16; break;
+			case ttInt64: st->enumTypeId = asTYPEID_INT64; break;
+			case ttUInt: st->enumTypeId = asTYPEID_UINT32; break;
+			case ttUInt8: st->enumTypeId = asTYPEID_UINT8; break;
+			case ttUInt16: st->enumTypeId = asTYPEID_UINT16; break;
+			case ttUInt64: st->enumTypeId = asTYPEID_UINT64; break;
+			default: asASSERT(false); break;
+			}
 		}
 		module->AddEnumType(st);
 
@@ -5011,6 +5049,7 @@ void asCBuilder::GetParsedFunctionDetails(asCScriptNode *node, asCScriptCode *fi
 	funcTraits.SetTrait(asTRAIT_OVERRIDE, false);
 	funcTraits.SetTrait(asTRAIT_EXPLICIT, false);
 	funcTraits.SetTrait(asTRAIT_PROPERTY, false);
+	funcTraits.SetTrait(asTRAIT_NODISCARD, false);
 
 	if( n->next->next )
 	{
@@ -5035,6 +5074,17 @@ void asCBuilder::GetParsedFunctionDetails(asCScriptNode *node, asCScriptCode *fi
 				funcTraits.SetTrait(asTRAIT_PROPERTY, true);
 			else if (file->TokenEquals(decorator->tokenPos, decorator->tokenLength, DELETE_TOKEN))
 				funcTraits.SetTrait(asTRAIT_DELETED, true);
+			else if (file->TokenEquals(decorator->tokenPos, decorator->tokenLength, NODISCARD_TOKEN))
+			{
+				if ( returnType.GetTokenType() == ttVoid )
+				{
+					asCString msg;
+					msg.Format(TXT_NODISCARD_CANT_BE_VOID, name.AddressOf());
+					WriteError(msg.AddressOf(), file, decorator);
+				}
+				else
+					funcTraits.SetTrait(asTRAIT_NODISCARD, true);
+			}
 			else
 			{
 				asCString msg(&file->code[decorator->tokenPos], decorator->tokenLength);
@@ -5756,6 +5806,8 @@ int asCBuilder::RegisterVirtualProperty(asCScriptNode *node, asCScriptCode *file
 					funcTraits.SetTrait(asTRAIT_FINAL, true);
 				else if (funcNode->tokenType == ttIdentifier && file->TokenEquals(funcNode->tokenPos, funcNode->tokenLength, OVERRIDE_TOKEN))
 					funcTraits.SetTrait(asTRAIT_OVERRIDE, true);
+				else if (funcNode->tokenType == ttIdentifier && file->TokenEquals(funcNode->tokenPos, funcNode->tokenLength, NODISCARD_TOKEN))
+					funcTraits.SetTrait(asTRAIT_NODISCARD, true);
 				else
 				{
 					asCString msg(&file->code[funcNode->tokenPos], funcNode->tokenLength);;
@@ -6474,7 +6526,7 @@ asCDataType asCBuilder::CreateDataTypeFromNode(asCScriptNode *node, asCScriptCod
 									return asCDataType::CreatePrimitive(ttInt, false);
 								}
 							}
-							else if (n && n->next && n->next->nodeType == snDataType)
+							else if (n && n->next && n->next->nodeType == snDataType && !(node->parent && node->parent->nodeType == snEnum))
 							{
 								if (reportError)
 								{
@@ -6802,16 +6854,6 @@ asCDataType asCBuilder::ModifyDataTypeFromNode(const asCDataType &type, asCScrip
 			if( inOutFlags )
 				*inOutFlags = asTM_INOUTREF; // ttInOut
 		}
-
-		if( !engine->ep.allowUnsafeReferences &&
-			inOutFlags && *inOutFlags == asTM_INOUTREF &&
-			!(dt.GetTypeInfo() && (dt.GetTypeInfo()->flags & asOBJ_TEMPLATE_SUBTYPE)) )
-		{
-			// Verify that the base type support &inout parameter types
-			if( !dt.IsObject() || dt.IsObjectHandle() || 
-				!((dt.GetTypeInfo()->flags & asOBJ_NOCOUNT) || (CastToObjectType(dt.GetTypeInfo())->beh.addref && CastToObjectType(dt.GetTypeInfo())->beh.release)) )
-				WriteError(TXT_ONLY_OBJECTS_MAY_USE_REF_INOUT, file, node->firstChild);
-		}
 	}
 
 	if( autoHandle ) *autoHandle = false;
@@ -7019,7 +7061,7 @@ asCFuncdefType *asCBuilder::GetFuncDef(const char *type, asSNameSpace *ns, asCOb
 
 #ifndef AS_NO_COMPILER
 
-int asCBuilder::GetEnumValueFromType(asCEnumType *type, const char *name, asCDataType &outDt, asDWORD &outValue)
+int asCBuilder::GetEnumValueFromType(asCEnumType *type, const char *name, asCDataType &outDt, asINT64 &outValue)
 {
 	if( !type || !(type->flags & asOBJ_ENUM) )
 		return 0;
@@ -7037,7 +7079,7 @@ int asCBuilder::GetEnumValueFromType(asCEnumType *type, const char *name, asCDat
 	return 0;
 }
 
-int asCBuilder::GetEnumValue(const char *name, asCDataType &outDt, asDWORD &outValue, asSNameSpace *ns)
+int asCBuilder::GetEnumValue(const char *name, asCDataType &outDt, asINT64 &outValue, asSNameSpace *ns)
 {
 	bool found = false;
 

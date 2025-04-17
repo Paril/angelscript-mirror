@@ -327,6 +327,7 @@ const char * const EXTERNAL_TOKEN  = "external";
 const char * const EXPLICIT_TOKEN  = "explicit";
 const char * const PROPERTY_TOKEN  = "property";
 const char * const DELETE_TOKEN    = "delete";
+const char * const NODISCARD_TOKEN = "nodiscard";
 
 END_AS_NAMESPACE
 

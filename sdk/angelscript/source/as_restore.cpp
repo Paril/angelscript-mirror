@@ -1673,7 +1673,7 @@ void asCReader::ReadTypeDeclaration(asCTypeInfo *type, int phase, bool *isExtern
 						return;
 					}
 					ReadString(&e->name);
-					ReadData(&e->value, 4); // TODO: Should be encoded
+					ReadData(&e->value, t->GetSize()); // TODO: Should be encoded
 					t->enumValues.PushLast(e);
 				}
 			}
@@ -1681,11 +1681,11 @@ void asCReader::ReadTypeDeclaration(asCTypeInfo *type, int phase, bool *isExtern
 			{
 				// Verify that the enum values exists in the original
 				asCString name;
-				int value;
+				asINT64 value;
 				for( int n = 0; n < count; n++ )
 				{
 					ReadString(&name);
-					ReadData(&value, 4); // TODO: Should be encoded
+					ReadData(&value, t->GetSize()); // TODO: Should be encoded
 					bool found = false;
 					for( asUINT e = 0; e < t->enumValues.GetLength(); e++ )
 					{
@@ -4504,7 +4504,7 @@ void asCWriter::WriteTypeDeclaration(asCTypeInfo *type, int phase)
 			for( int n = 0; n < size; n++ )
 			{
 				WriteString(&t->enumValues[n]->name);
-				WriteData(&t->enumValues[n]->value, 4);
+				WriteData(&t->enumValues[n]->value, t->GetSize());
 			}
 		}
 		else if(type->flags & asOBJ_TYPEDEF )
